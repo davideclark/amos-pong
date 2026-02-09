@@ -1,0 +1,8 @@
+# DevRag MCP data
+config.json
+vectors.db
+documents/
+models/
+
+# Claude Code
+.claude/
