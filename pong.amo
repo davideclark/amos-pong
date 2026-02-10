@@ -1,4 +1,4 @@
-' BUILD 2 - Conditional draw (fixed)
+' BUILD 5 - Hardware sprites
 ' Simple Pong - Player vs AI
 ' Aghnar / Agima 02/2025
 '
@@ -74,10 +74,6 @@ GS=0
 PTMR=0
 LASTSC=1
 
-' Old positions per buffer for selective erase
-Dim OBX(1),OBY(1),OP1(1),OP2(1)
-OBX(0)=BX : OBY(0)=BY : OP1(0)=P1Y : OP2(0)=P2Y
-OBX(1)=BX : OBY(1)=BY : OP1(1)=P1Y : OP2(1)=P2Y
 ' Per-buffer old score/state for conditional redraws
 Dim OS1(1),OS2(1),OGS(1)
 OS1(0)=-1 : OS1(1)=-1 : OS2(0)=-1 : OS2(1)=-1
@@ -130,6 +126,25 @@ Procedure PCOURT
 End Proc
 
 ' ---------------------
+' Create sprite images
+' Use Ink 1 so colour maps to sprite bit 01
+' ---------------------
+'
+Cls 0
+Ink 1 : Bar 0,0 To BSIZ,BSIZ
+Get Bob 1,0,0 To BSIZ+1,BSIZ+1
+Cls 0
+Ink 1 : Bar 0,0 To PW,PH
+Get Bob 2,0,0 To PW+1,PH+1
+
+' Set sprite palette colours via hardware registers
+' Sprite 0 (pair 0-1) colour 17, Sprite 2 (pair 2-3) colour 21,
+' Sprite 4 (pair 4-5) colour 25
+Doke $DFF1A2,$FF0
+Doke $DFF1AA,$0BF
+Doke $DFF1B2,$F80
+
+' ---------------------
 ' Title screen
 ' ---------------------
 '
@@ -145,7 +160,7 @@ Pen 5
 Locate 11,18 : Print "PRESS FIRE TO START";
 Pen 7
 Locate 15,22 : Print "ESC TO QUIT";
-Locate 14,26 : Print "BUILD 2";
+Locate 14,26 : Print "BUILD 5";
 Screen Swap : Wait Vbl
 
 ' Wait for fire button or mouse
@@ -170,6 +185,10 @@ Bar 0,CB-2 To 319,CB
 Ink 7
 Draw 160,CT+3 To 160,CB-3
 
+' Cache hardware coordinate offsets for sprite positioning
+SXH=X Hard(0)
+SYH=Y Hard(0)
+
 ' ---------------------
 ' Main game loop
 ' ---------------------
@@ -178,20 +197,9 @@ Do
 
    ' --- ESC to quit ---
    If Key State(69)
+      Sprite Off
       Sam Stop
       End
-   End If
-
-   ' --- Erase old positions on this buffer ---
-   Ink 0
-   Bar OBX(BUF),OBY(BUF) To OBX(BUF)+BSIZ,OBY(BUF)+BSIZ
-   Bar P1X,OP1(BUF) To P1X+PW,OP1(BUF)+PH
-   Bar P2X,OP2(BUF) To P2X+PW,OP2(BUF)+PH
-
-   ' Repair centre line only where ball was
-   If OBX(BUF)<=160 and OBX(BUF)+BSIZ>=160
-      Ink 7
-      Draw 160,OBY(BUF) To 160,OBY(BUF)+BSIZ
    End If
 
    ' --- Input ---
@@ -335,22 +343,17 @@ Do
       End If
    End If
 
-   ' --- Store positions for this buffer ---
-   OBX(BUF)=BX : OBY(BUF)=BY
-   OP1(BUF)=P1Y : OP2(BUF)=P2Y
+   ' --- Position hardware sprites ---
+   ' Sprite 0=ball, 2=player paddle, 4=AI paddle
+   ' Each in separate pair for independent colours
+   Sprite 0,SXH+BX,SYH+BY,1
+   Sprite 2,SXH+P1X,SYH+P1Y,2
+   Sprite 4,SXH+P2X,SYH+P2Y,2
 
-   ' --- Draw ---
-   ' Player paddle (cyan)
-   Ink 2
-   Bar P1X,P1Y To P1X+PW,P1Y+PH
-
-   ' AI paddle (orange)
-   Ink 3
-   Bar P2X,P2Y To P2X+PW,P2Y+PH
-
-   ' Ball (yellow)
-   Ink 4
-   Bar BX,BY To BX+BSIZ,BY+BSIZ
+   ' Refresh sprite palette (in case copper resets it)
+   Doke $DFF1A2,$FF0
+   Doke $DFF1AA,$0BF
+   Doke $DFF1B2,$F80
 
    ' 7-segment score (clear + draw together, only when changed)
    If S1<>OS1(BUF) or S2<>OS2(BUF)
